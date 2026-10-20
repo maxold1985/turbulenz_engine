@@ -60,7 +60,7 @@ jobs:
       - name: Install make and TypeScript
         run: |
           choco install make -y --no-progress
-          npm install --global typescript
+          npm install --global typescript@1.8.10
       - name: Inspect environment
         run: |
           git submodule status
@@ -75,7 +75,7 @@ jobs:
           $files = Get-ChildItem tslib -Filter '*.ts' -File
           if (-not $files) { throw 'No TypeScript sources found' }
           & tsc --version
-          & tsc --noEmit --skipLibCheck --target ES5 --module none tslib/base.d.ts tslib/turbulenz.d.ts tslib/debug.ts 2>&1 | Tee-Object -FilePath build-windows.log
+          & tsc --noEmit --target ES5 --module commonjs tslib/base.d.ts tslib/turbulenz.d.ts tslib/debug.ts 2>&1 | Tee-Object -FilePath build-windows.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Upload Windows log
         if: always()
