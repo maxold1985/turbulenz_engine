@@ -1,0 +1,88 @@
+name: Windows Turbulenz Engine (legacy)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/turbulenz-windows.yml'
+      - 'manage.py'
+      - 'scripts/**'
+      - 'tools/**'
+      - 'Makefile'
+  pull_request:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout engine
+        uses: actions/checkout@v4
+
+      - name: Install Python 2.7 for legacy Turbulenz
+        run: |
+          choco install python2 --version=2.7.18 -y --no-progress
+          $python = 'C:\Python27\python.exe'
+          if (!(Test-Path $python)) { throw 'Python 2.7 not found at C:\Python27\python.exe' }
+          & $python --version
+          "PYTHON27=$python" >> $env:GITHUB_ENV
+
+      - name: Install pip and Python asset tools
+        run: |
+          & $env:PYTHON27 -m pip --version
+          if ($LASTEXITCODE -ne 0) {
+            Invoke-WebRequest 'https://bootstrap.pypa.io/pip/2.7/get-pip.py' -OutFile get-pip.py
+            & $env:PYTHON27 get-pip.py 'pip<21'
+            if ($LASTEXITCODE -ne 0) { throw 'pip bootstrap failed' }
+          }
+          & $env:PYTHON27 -m pip install 'pip<21' 'setuptools<45' 'virtualenv<17'
+          if ($LASTEXITCODE -ne 0) { throw 'Legacy pip dependencies failed' }
+          & $env:PYTHON27 -m virtualenv env
+          if ($LASTEXITCODE -ne 0) { throw 'Virtualenv creation failed' }
+          $envPython = Join-Path $PWD 'env\Scripts\python.exe'
+          & $envPython -m pip install 'PyYAML==5.3.1' 'simplejson<4' 'turbulenz_tools>=1.0.7,<2'
+          if ($LASTEXITCODE -ne 0) { throw 'Turbulenz asset tools installation failed' }
+          & $envPython -m turbulenz_tools.tools.dae2json --version
+          if ($LASTEXITCODE -ne 0) { throw 'dae2json is unavailable' }
+          "ENV_PYTHON=$envPython" >> $env:GITHUB_ENV
+
+      - name: Install TypeScript compiler for legacy jslib
+        run: |
+          npm install --global typescript@1.0.1
+          if ($LASTEXITCODE -ne 0) { throw 'Legacy TypeScript installation failed' }
+          tsc --version
+          if ($LASTEXITCODE -ne 0) { throw 'tsc is unavailable' }
+
+      - name: Check native Windows build prerequisites
+        run: |
+          $make = '.\external\gnumake-win32\3.81\bin\make.exe'
+          if (!(Test-Path $make)) { throw 'Bundled GNU Make not found' }
+          $cgfx = '.\tools\bin\win32\cgfx2json.exe'
+          if (!(Test-Path $cgfx)) {
+            Write-Host 'cgfx2json.exe is missing; native shader converter must be built before jslib.'
+            & $env:ENV_PYTHON manage.py tools
+            if ($LASTEXITCODE -ne 0) { throw 'Native Turbulenz tools build failed. Legacy Visual Studio toolset may be required.' }
+          }
+          if (!(Test-Path $cgfx)) { throw 'cgfx2json.exe was not generated' }
+
+      - name: Build JavaScript engine and samples
+        run: |
+          & $env:ENV_PYTHON manage.py jslib
+          if ($LASTEXITCODE -ne 0) { throw 'jslib build failed' }
+          & $env:ENV_PYTHON manage.py samples
+          if ($LASTEXITCODE -ne 0) { throw 'samples build failed' }
+
+      - name: Upload generated engine and samples
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: turbulenz-windows-jslib-samples
+          path: |
+            jslib/
+            jslib-modular/
+            samples/
+            _build/
+          if-no-files-found: warn
