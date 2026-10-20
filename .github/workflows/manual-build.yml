@@ -11,7 +11,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+      - name: Initialize submodules using HTTPS
+        shell: bash
+        run: |
+          git config --global url.https://github.com/.insteadOf git://github.com/
+          git submodule sync --recursive
+          git submodule update --init --recursive
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -44,7 +50,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+      - name: Initialize submodules using HTTPS
+        shell: bash
+        run: |
+          git config --global url.https://github.com/.insteadOf git://github.com/
+          git submodule sync --recursive
+          git submodule update --init --recursive
       - name: Install make and TypeScript
         run: |
           choco install make -y --no-progress
