@@ -91,7 +91,7 @@ jobs:
               source = Path(name)
               if source.is_dir():
                   shutil.copytree(source, target / name, dirs_exist_ok=True,
-                                  ignore=shutil.ignore_patterns(".git", "__pycache__", "node_modules", "obj", "bin", "build", "env"))
+                                  ignore=shutil.ignore_patterns(".git", "__pycache__", "node_modules", "obj", "build", "env"))
           (target / "READ_ME_FIRST.txt").write_text(
               "This is the complete source distribution, not a ready-to-run engine.\\n"
               "The original build needs Python 2.7, legacy TypeScript and CgFX tools.\\n"
