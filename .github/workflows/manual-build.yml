@@ -1,0 +1,41 @@
+name: Turbulenz Engine - Manual Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Attempt engine build (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential python3 nodejs npm
+
+      - name: Inspect build environment
+        run: |
+          git submodule status
+          ls -la external/tzbuild || true
+          make --version
+          node --version
+
+      - name: Attempt build
+        shell: bash
+        run: |
+          set -o pipefail
+          make -j2 2>&1 | tee build.log
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: turbulenz-build-log
+          path: build.log
+          if-no-files-found: warn
