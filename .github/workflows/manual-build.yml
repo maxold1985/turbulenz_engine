@@ -74,6 +74,41 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+      - name: Package complete source tree for rebuilding
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import shutil
+          from pathlib import Path
+          target = Path("ci-full-source")
+          target.mkdir(exist_ok=True)
+          for name in ("manage.py", "Makefile", "README.rst", ".gitmodules"):
+              source = Path(name)
+              if source.is_file():
+                  shutil.copy2(source, target / name)
+          for name in ("scripts", "tslib", "samples", "apps", "assets", "tools", "external"):
+              source = Path(name)
+              if source.is_dir():
+                  shutil.copytree(source, target / name, dirs_exist_ok=True,
+                                  ignore=shutil.ignore_patterns(".git", "__pycache__", "node_modules", "obj", "bin", "build", "env"))
+          (target / "READ_ME_FIRST.txt").write_text(
+              "This is the complete source distribution, not a ready-to-run engine.\\n"
+              "The original build needs Python 2.7, legacy TypeScript and CgFX tools.\\n"
+              "Run manage.py only from this directory after installing dependencies.\\n"
+              "The separate core/examples artifacts contain partial JS outputs only.\\n",
+              encoding="utf-8")
+          PY
+
+      - name: Upload complete Turbulenz source
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: turbulenz-full-source-${{ runner.os }}
+          path: ci-full-source/
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Upload compiler diagnostics and build report
         if: always()
         uses: actions/upload-artifact@v4
