@@ -142,29 +142,30 @@ if (0 === options.stripspaces.length)
 // import uglifyjs
 // -----------------------------------------------------------------------------
 
-var uglifyPaths = [ options.uglifyjs + 'lib',
-                    '../../external/uglifyjs/lib',
-                    '../../engine/external/uglifyjs/lib' ];
+var uglifyPaths = [
+    path.resolve(__dirname, "../../external/uglify-legacy/node_modules/uglify-js/lib"),
+    path.resolve(__dirname, "../../node_modules/uglify-js/lib"),
+    path.resolve(__dirname, "../../external/uglifyjs/lib")
+];
+if (options.uglifyjs) {
+    uglifyPaths.unshift(path.resolve(options.uglifyjs, "lib"));
+}
 var jsp, pro;
-for (var p = 0; p < uglifyPaths.length; p += 1)
-{
-    if (uglifyPaths[p])
-    {
-        try {
-            jsp = require(uglifyPaths[p] + "/parse-js");
-            pro = require(uglifyPaths[p] + "/process");
-        } catch (e) {
-        }
-        if (jsp)
-        {
-            break;
+for (var p = 0; p < uglifyPaths.length; p += 1) {
+    try {
+        var candidateJsp = require(path.join(uglifyPaths[p], "parse-js"));
+        var candidatePro = require(path.join(uglifyPaths[p], "process"));
+        jsp = candidateJsp;
+        pro = candidatePro;
+        break;
+    } catch (e) {
+        if (options.verbose) {
+            process.stderr.write(uglifyPaths[p] + ": " + e.message + "\n");
         }
     }
 }
-
-if (!jsp)
-{
-    process.stderr.write("ERROR: Could not find uglifyjs\n");
+if (!jsp || !pro) {
+    process.stderr.write("ERROR: Could not find UglifyJS 1.x parse-js/process\n");
     process.exit(1);
 }
 
