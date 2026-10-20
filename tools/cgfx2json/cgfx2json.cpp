@@ -1,6 +1,12 @@
 // Copyright (c) 2009-2015 Turbulenz Limited
 
 #include "stdafx.h"
+
+// Visual C++ 2010 does not provide the C99 fixed-width integer typedefs.
+// Keep this compatibility definition local to the legacy compiler.
+#if defined(_MSC_VER) && (_MSC_VER == 1600)
+typedef unsigned char uint8_t;
+#endif
 #include "../common/json.h"
 #include <stdio.h>
 #include <stdarg.h>
