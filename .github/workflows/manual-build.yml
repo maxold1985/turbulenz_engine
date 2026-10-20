@@ -1,90 +1,88 @@
-name: Turbulenz Engine - Manual Build
+name: Turbulenz Engine - Core and Examples
 
 on:
   workflow_dispatch:
 
 jobs:
-  linux:
-    name: Attempt engine build (Linux)
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+  javascript:
+    name: Build core and samples (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Turbulenz
+        uses: actions/checkout@v4
         with:
           submodules: false
-      - name: Initialize submodules using HTTPS
+
+      - name: Fetch legacy submodules using HTTPS
         shell: bash
         run: |
           git config --global url.https://github.com/.insteadOf git://github.com/
           git submodule sync --recursive
           git submodule update --init --recursive
-      - name: Install dependencies
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install original Turbulenz TypeScript compiler
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential python3 nodejs npm
-      - name: Inspect environment
-        run: |
-          git submodule status
-          ls -la external/tzbuild || true
-          make --version
-      - name: Attempt build
+          npm install --global typescript@1.0.1
+          tsc --version
+
+      - name: Compile engine core, examples, and apps to JavaScript
         shell: bash
         run: |
           set -o pipefail
-          make -j2 2>&1 | tee build-linux.log
-      - name: Upload Linux log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: turbulenz-linux-build-log
-          path: build-linux.log
-          if-no-files-found: warn
+          python scripts/ci_build_js.py --output ci-output 2>&1 | tee ci-run.log
 
-  windows:
-    name: Attempt engine build (Windows)
-    runs-on: windows-latest
-    timeout-minutes: 45
-    defaults:
-      run:
-        shell: pwsh
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: false
-      - name: Initialize submodules using HTTPS
+      - name: Validate representative compiled JavaScript
         shell: bash
         run: |
-          git config --global url.https://github.com/.insteadOf git://github.com/
-          git submodule sync --recursive
-          git submodule update --init --recursive
-      - name: Install make and TypeScript
-        run: |
-          choco install make -y --no-progress
-          npm install --global typescript@1.0.1
-      - name: Inspect environment
-        run: |
-          git submodule status
-          Get-ChildItem external/tzbuild -ErrorAction SilentlyContinue
-          make --version
-          tsc --version
-      - name: Compile legacy TypeScript (without VS2013 native toolchain)
-        run: |
-          # The original native Make target requires VS2013 and Windows SDK 8.1.
-          # scripts/install_nodejs.py specifies TypeScript 1.0.1 for this engine.
-          # Build the TypeScript debug module with the era-correct standard library.
-          New-Item -ItemType Directory -Force -Path build-ts | Out-Null
-          $files = Get-ChildItem tslib -Filter '*.ts' -File
-          if (-not $files) { throw 'No TypeScript sources found' }
-          & tsc --version
-          & tsc --target ES5 --module commonjs --out build-ts/debug.js tslib/base.d.ts tslib/turbulenz.d.ts tslib/debug.ts 2>&1 | Tee-Object -FilePath build-windows.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if (-not (Test-Path build-ts/debug.js)) { throw 'TypeScript did not produce build-ts/debug.js' }
-      - name: Upload Windows log
+          node --check ci-output/core/jslib/debug.js
+          node --check ci-output/core/jslib/vmath.js
+          node --check ci-output/examples/js/samples/templates/basic_loop.js
+          node --check ci-output/examples/js/samples/templates/device_initialization.js
+
+      - name: Upload Turbulenz core JavaScript
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: turbulenz-windows-build-log
-          path: |
-            build-windows.log
-            build-ts/debug.js
+          name: turbulenz-core-${{ runner.os }}
+          path: ci-output/core/
           if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload Turbulenz samples and apps
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: turbulenz-examples-${{ runner.os }}
+          path: ci-output/examples/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload compiler diagnostics and build report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: turbulenz-build-report-${{ runner.os }}
+          path: |
+            ci-run.log
+            ci-output/README.txt
+            ci-output/report.json
+            ci-output/typescript-diagnostics.log
+          if-no-files-found: warn
+          retention-days: 14
