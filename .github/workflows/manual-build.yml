@@ -60,27 +60,31 @@ jobs:
       - name: Install make and TypeScript
         run: |
           choco install make -y --no-progress
-          npm install --global typescript@1.8.10
+          npm install --global typescript@1.0.1
       - name: Inspect environment
         run: |
           git submodule status
           Get-ChildItem external/tzbuild -ErrorAction SilentlyContinue
           make --version
           tsc --version
-      - name: Attempt TypeScript engine build (without legacy VS2013 native toolchain)
+      - name: Compile legacy TypeScript (without VS2013 native toolchain)
         run: |
           # The original native Make target requires VS2013 and Windows SDK 8.1.
-          # Build the TypeScript engine libraries independently instead.
+          # scripts/install_nodejs.py specifies TypeScript 1.0.1 for this engine.
+          # Build the TypeScript debug module with the era-correct standard library.
           New-Item -ItemType Directory -Force -Path build-ts | Out-Null
           $files = Get-ChildItem tslib -Filter '*.ts' -File
           if (-not $files) { throw 'No TypeScript sources found' }
           & tsc --version
-          & tsc --noLib --noEmit --target ES5 --module commonjs tslib/base.d.ts tslib/turbulenz.d.ts tslib/debug.ts 2>&1 | Tee-Object -FilePath build-windows.log
+          & tsc --target ES5 --module commonjs --out build-ts/debug.js tslib/base.d.ts tslib/turbulenz.d.ts tslib/debug.ts 2>&1 | Tee-Object -FilePath build-windows.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path build-ts/debug.js)) { throw 'TypeScript did not produce build-ts/debug.js' }
       - name: Upload Windows log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: turbulenz-windows-build-log
-          path: build-windows.log
+          path: |
+            build-windows.log
+            build-ts/debug.js
           if-no-files-found: warn
