@@ -4,38 +4,65 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  linux:
     name: Attempt engine build (Linux)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Checkout with submodules
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: Install build dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential python3 nodejs npm
-
-      - name: Inspect build environment
+      - name: Inspect environment
         run: |
           git submodule status
           ls -la external/tzbuild || true
           make --version
-          node --version
-
       - name: Attempt build
         shell: bash
         run: |
           set -o pipefail
-          make -j2 2>&1 | tee build.log
-
-      - name: Upload build log
+          make -j2 2>&1 | tee build-linux.log
+      - name: Upload Linux log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: turbulenz-build-log
-          path: build.log
+          name: turbulenz-linux-build-log
+          path: build-linux.log
+          if-no-files-found: warn
+
+  windows:
+    name: Attempt engine build (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install make and TypeScript
+        run: |
+          choco install make -y --no-progress
+          npm install --global typescript
+      - name: Inspect environment
+        run: |
+          git submodule status
+          Get-ChildItem external/tzbuild -ErrorAction SilentlyContinue
+          make --version
+          tsc --version
+      - name: Attempt build
+        run: |
+          make -j2 2>&1 | Tee-Object -FilePath build-windows.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload Windows log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: turbulenz-windows-build-log
+          path: build-windows.log
           if-no-files-found: warn
