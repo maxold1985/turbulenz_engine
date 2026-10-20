@@ -56,17 +56,26 @@ jobs:
           tsc --version
           if ($LASTEXITCODE -ne 0) { throw 'tsc is unavailable' }
 
-      - name: Install UglifyJS for sample minification
+      - name: Install UglifyJS dependencies for strip-debug and compactor
         run: |
-          npm install --global uglify-js@2.4.24
-          if ($LASTEXITCODE -ne 0) { throw 'Legacy UglifyJS installation failed' }
-          $npmPrefix = (npm prefix --global).Trim()
-          $env:PATH = "$npmPrefix;$env:PATH"
-          "$npmPrefix" >> $env:GITHUB_PATH
-          $uglify = Join-Path $npmPrefix 'uglifyjs.cmd'
-          if (!(Test-Path $uglify)) { throw "uglifyjs.cmd not found in $npmPrefix" }
-          & $uglify --version
-          if ($LASTEXITCODE -ne 0) { throw 'uglifyjs executable failed' }
+          npm install --prefix ./external/uglify-legacy --no-save --no-package-lock uglify-js@1.3.5
+          if ($LASTEXITCODE -ne 0) { throw 'UglifyJS 1.x installation failed' }
+          $legacy = './external/uglify-legacy/node_modules/uglify-js/lib'
+          if (!(Test-Path "$legacy/parse-js.js") -or !(Test-Path "$legacy/process.js")) {
+            throw 'Legacy UglifyJS parse-js/process modules missing'
+          }
+          node -e "require('./external/uglify-legacy/node_modules/uglify-js/lib/parse-js'); require('./external/uglify-legacy/node_modules/uglify-js/lib/process')"
+          if ($LASTEXITCODE -ne 0) { throw 'strip-debug modules failed to load' }
+          if (!(Test-Path './external/uglifyjs/bin/uglifyjs')) { throw 'Bundled compactor missing' }
+          npm install --prefix ./external/uglifyjs --no-save --no-package-lock source-map@0.1.43
+          if ($LASTEXITCODE -ne 0) { throw 'Compactor dependency installation failed' }
+          node ./external/uglifyjs/bin/uglifyjs --version
+          if ($LASTEXITCODE -ne 0) { throw 'Compactor failed to start' }
+          Set-Content ./uglify-smoke.js 'function sum(a,b){return a+b;}'
+          node ./external/uglifyjs/bin/uglifyjs -o ./uglify-smoke.min.js ./uglify-smoke.js
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path ./uglify-smoke.min.js)) {
+            throw 'Compactor smoke test failed'
+          }
 
       - name: Check native Windows build prerequisites
         run: |
