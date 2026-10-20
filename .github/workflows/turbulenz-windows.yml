@@ -56,6 +56,18 @@ jobs:
           tsc --version
           if ($LASTEXITCODE -ne 0) { throw 'tsc is unavailable' }
 
+      - name: Install UglifyJS for sample minification
+        run: |
+          npm install --global uglify-js@2.4.24
+          if ($LASTEXITCODE -ne 0) { throw 'Legacy UglifyJS installation failed' }
+          $npmPrefix = (npm prefix --global).Trim()
+          $env:PATH = "$npmPrefix;$env:PATH"
+          "$npmPrefix" >> $env:GITHUB_PATH
+          $uglify = Join-Path $npmPrefix 'uglifyjs.cmd'
+          if (!(Test-Path $uglify)) { throw "uglifyjs.cmd not found in $npmPrefix" }
+          & $uglify --version
+          if ($LASTEXITCODE -ne 0) { throw 'uglifyjs executable failed' }
+
       - name: Check native Windows build prerequisites
         run: |
           $make = '.\external\gnumake-win32\3.81\bin\make.exe'
